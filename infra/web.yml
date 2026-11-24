@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 서울 리전 웹 배포 실습
+
+Parameters:
+  AmiId:
+    Type: String
+    AllowedPattern: 'ami-[0-9a-f]+'
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+  SshCidr:
+    Type: String
+    AllowedPattern: '([0-9]{1,3}\.){3}[0-9]{1,3}/32'
+    ConstraintDescription: 개인 공인 주소 하나를 클래스 없는 주소 형식으로 입력하세요.
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: cds-publish-web
+        - Key: Project
+          Value: cds-publish-web
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Project
+          Value: cds-publish-web
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Project
+          Value: cds-publish-web
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+  PublicRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Project
+          Value: cds-publish-web
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRoutes
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetRoutes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRoutes
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref Vpc
+      GroupDescription: Public web and personal SSH
+      Tags:
+        - Key: Project
+          Value: cds-publish-web
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SshCidr
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+  WebServer:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - InternetRoute
+      - PublicSubnetRoutes
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: t3.micro
+      InstanceInitiatedShutdownBehavior: terminate
+      CreditSpecification:
+        CPUCredits: standard
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref WebSecurityGroup
+      KeyName: !Ref KeyName
+      MetadataOptions:
+        HttpTokens: required
+      PropagateTagsToVolumeOnCreation: true
+      Tags:
+        - Key: Name
+          Value: cds-publish-web
+        - Key: Project
+          Value: cds-publish-web
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -eu
+
+          # 실습이 중단되어도 한 시간 뒤 인스턴스를 종료한다.
+          shutdown -P +60
+
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get -o Acquire::Retries=3 update
+          apt-get -o Acquire::Retries=3 install -y caddy
+
+          install -d -m 755 /var/www/cds-publish-web
+          cat > /var/www/cds-publish-web/index.html <<'HTML'
+          <!doctype html>
+          <html lang="ko">
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>웹 배포 실습</title>
+          <main>
+            <h1>웹 배포 실습</h1>
+            <p>서울 리전의 웹 서버에서 이 페이지를 제공하고 있습니다.</p>
+            <a href="/health">서버 상태 확인</a>
+          </main>
+          </html>
+          HTML
+
+          cat > /etc/caddy/Caddyfile <<'CADDY'
+          :80 {
+          	log
+          	root * /var/www/cds-publish-web
+          	respond /health "OK" 200
+          	file_server
+          }
+          CADDY
+
+          caddy validate --config /etc/caddy/Caddyfile
+          systemctl enable --now caddy
+          systemctl reload caddy
+          curl -fsS http://localhost/health
+
+Outputs:
+  HealthUrl:
+    Value: !Sub 'http://${WebServer.PublicIp}/health'
+  PublicIp:
+    Value: !GetAtt WebServer.PublicIp
+  InstanceId:
+    Value: !Ref WebServer
+  VpcId:
+    Value: !Ref Vpc
+  SubnetId:
+    Value: !Ref PublicSubnet
+  RouteTableId:
+    Value: !Ref PublicRoutes
+  GatewayId:
+    Value: !Ref InternetGateway
+  SecurityGroupId:
+    Value: !Ref WebSecurityGroup

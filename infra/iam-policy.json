@@ -1,0 +1,165 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ManageLabStack",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack",
+        "cloudformation:DeleteStack",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:ListStackResources",
+        "cloudformation:TagResource"
+      ],
+      "Resource": "arn:aws:cloudformation:ap-northeast-2:*:stack/cds-publish-web/*"
+    },
+    {
+      "Sid": "ReadSeoulResources",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ListStacks",
+        "cloudformation:ValidateTemplate",
+        "ec2:DescribeAddresses",
+        "ec2:DescribeImages",
+        "ec2:DescribeInstanceAttribute",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeInstanceTypes",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeKeyPairs",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeVpcAttribute",
+        "ec2:DescribeVpcs"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": { "aws:RequestedRegion": "ap-northeast-2" }
+      }
+    },
+    {
+      "Sid": "CreateTaggedLabResources",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateVpc",
+        "ec2:CreateSubnet",
+        "ec2:CreateInternetGateway",
+        "ec2:CreateRouteTable",
+        "ec2:CreateSecurityGroup",
+        "ec2:ImportKeyPair"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-2:*:vpc/*",
+        "arn:aws:ec2:ap-northeast-2:*:subnet/*",
+        "arn:aws:ec2:ap-northeast-2:*:internet-gateway/*",
+        "arn:aws:ec2:ap-northeast-2:*:route-table/*",
+        "arn:aws:ec2:ap-northeast-2:*:security-group/*",
+        "arn:aws:ec2:ap-northeast-2:*:key-pair/cds-publish-web"
+      ],
+      "Condition": {
+        "StringEquals": { "aws:RequestTag/Project": "cds-publish-web" }
+      }
+    },
+    {
+      "Sid": "TagNewLabResources",
+      "Effect": "Allow",
+      "Action": "ec2:CreateTags",
+      "Resource": "arn:aws:ec2:ap-northeast-2:*:*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:CreateAction": [
+            "CreateVpc",
+            "CreateSubnet",
+            "CreateInternetGateway",
+            "CreateRouteTable",
+            "CreateSecurityGroup",
+            "ImportKeyPair",
+            "RunInstances"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ManageTaggedLabResources",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AttachInternetGateway",
+        "ec2:DetachInternetGateway",
+        "ec2:AssociateRouteTable",
+        "ec2:DisassociateRouteTable",
+        "ec2:CreateRoute",
+        "ec2:DeleteRoute",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:ModifySubnetAttribute",
+        "ec2:ModifyVpcAttribute",
+        "ec2:TerminateInstances",
+        "ec2:DeleteVpc",
+        "ec2:DeleteSubnet",
+        "ec2:DeleteInternetGateway",
+        "ec2:DeleteRouteTable",
+        "ec2:DeleteSecurityGroup",
+        "ec2:DeleteKeyPair",
+        "ec2:CreateTags"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-2:*:*",
+      "Condition": {
+        "StringEquals": { "aws:ResourceTag/Project": "cds-publish-web" }
+      }
+    },
+    {
+      "Sid": "CreateNetworkResourcesInLabVpc",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSubnet",
+        "ec2:CreateRouteTable",
+        "ec2:CreateSecurityGroup"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-2:*:vpc/*",
+      "Condition": {
+        "StringEquals": { "aws:ResourceTag/Project": "cds-publish-web" }
+      }
+    },
+    {
+      "Sid": "LaunchTaggedMicroInstance",
+      "Effect": "Allow",
+      "Action": "ec2:RunInstances",
+      "Resource": "arn:aws:ec2:ap-northeast-2:*:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:InstanceType": "t3.micro",
+          "aws:RequestTag/Project": "cds-publish-web"
+        }
+      }
+    },
+    {
+      "Sid": "UseLabNetworkAndKey",
+      "Effect": "Allow",
+      "Action": "ec2:RunInstances",
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-2:*:subnet/*",
+        "arn:aws:ec2:ap-northeast-2:*:security-group/*",
+        "arn:aws:ec2:ap-northeast-2:*:key-pair/cds-publish-web"
+      ],
+      "Condition": {
+        "StringEquals": { "aws:ResourceTag/Project": "cds-publish-web" }
+      }
+    },
+    {
+      "Sid": "LaunchInstanceDependencies",
+      "Effect": "Allow",
+      "Action": "ec2:RunInstances",
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-2::image/ami-*",
+        "arn:aws:ec2:ap-northeast-2:*:network-interface/*",
+        "arn:aws:ec2:ap-northeast-2:*:volume/*"
+      ]
+    }
+  ]
+}
